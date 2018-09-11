@@ -1,158 +1,180 @@
 package com.cosson;
 
-import com.cosson.socialnetwork.request.ListOfFriends;
-import com.cosson.socialnetwork.request.PairUpdate;
-import com.cosson.socialnetwork.request.RetrieveFriendList;
-import com.cosson.socialnetwork.request.UserUpdate;
+import com.cosson.socialnetwork.controller.FriendManagementController;
 import com.cosson.socialnetwork.response.FriendListResult;
 import com.cosson.socialnetwork.response.SimpleResult;
 import com.cosson.socialnetwork.response.SubscriberResult;
+import com.cosson.socialnetwork.service.FriendManagementService;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
+import org.mockito.Mockito;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.context.junit4.SpringRunner;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.RequestBuilder;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertEquals;
 
 @RunWith(SpringRunner.class)
-@SpringBootTest
+@WebMvcTest(value = FriendManagementController.class, secure = false)
 public class ApiServerApplicationTest {
 
-    private final String apiUrl = "http://localhost:8080/friend/";
-    private final String createConnectionUrl = apiUrl + "createConnection";
-    private final String retrieveFriendUrl = apiUrl + "retrieveFriendList";
-    private final String retrieveCommonFriendUrl = apiUrl + "retrieveCommonFriendList";
-    private final String subscribeUpdateUrl = apiUrl + "subscribeUpdate";
-    private final String blockUpdatesUrl = apiUrl + "blockUpdates";
-    private final String retrieveEligibleSubscriberUrl = apiUrl + "retrieveEligibleSubscriber";
-    TestRestTemplate template = new TestRestTemplate();
-    HttpHeaders headers = new HttpHeaders();
+    private final String createConnectionUrl = "/friend/createConnection";
+    private final String retrieveFriendUrl = "/friend/retrieveFriendList";
+    private final String retrieveCommonFriendUrl = "/friend/retrieveCommonFriendList";
+    private final String subscribeUpdateUrl = "/friend/subscribeUpdate";
+    private final String blockUpdatesUrl = "/friend/blockUpdates";
+    private final String retrieveEligibleSubscriberUrl = "/friend/retrieveEligibleSubscriber";
+
+    private final SimpleResult mockSimpleResult = new SimpleResult(true);
+    private final String simpleResultJson = "{\"success\":true}";
+    private final String mockFriendListResultJson = "{\"success\":true,\"friends\":[\"test1@test.com\",\"test2@test.com\"],\"count\":2}";
+    private final String exampleListOfFriendsJson = "{\n" +
+            "  \"friends\":\n" +
+            "    [\n" +
+            "      \"abc@test.com\",\n" +
+            "      \"bcd@test.com\"\n" +
+            "    ]\n" +
+            "}";
+    private final String requestorTargetJson = "{\n" +
+            "  \"requestor\": \"requestor@test.com\",\n" +
+            "  \"target\": \"target@test.com\"\n" +
+            "}";
+    private FriendListResult mockFriendListResult;
+    @Autowired
+    private MockMvc mockMvc;
+    @MockBean
+    private FriendManagementService service;
 
     @Before
     public void before() {
-        headers.setContentType(MediaType.APPLICATION_JSON);
+        List<String> friends = new ArrayList<>();
+        friends.add("test1@test.com");
+        friends.add("test2@test.com");
+        mockFriendListResult = new FriendListResult(true, friends);
     }
 
     @Test
-    public void testCreateConnection() {
-        List<String> friendList = new ArrayList<>();
-        friendList.add("test11@test.com");
-        friendList.add("test12@test.com");
-        ListOfFriends listOfFriends = new ListOfFriends(friendList);
-        HttpEntity<ListOfFriends> entity = new HttpEntity<>(listOfFriends, headers);
-        SimpleResult response = template.postForObject(createConnectionUrl, entity, SimpleResult.class);
-        assertTrue(response.isSuccess() == true);
+    public void testCreateConnection() throws Exception {
+        Mockito.when(
+                service.createConnection(Mockito.anyList())).thenReturn(mockSimpleResult);
+
+        RequestBuilder requestBuilder = MockMvcRequestBuilders.post(createConnectionUrl)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(exampleListOfFriendsJson)
+                .contentType(MediaType.APPLICATION_JSON);
+
+        MvcResult result = mockMvc.perform(requestBuilder).andReturn();
+
+        MockHttpServletResponse response = result.getResponse();
+        assertEquals(HttpStatus.OK.value(), response.getStatus());
+
+        assertEquals(simpleResultJson, result.getResponse().getContentAsString());
     }
 
     @Test
-    public void testRetrieveFriendList() {
-        List<String> friendList = new ArrayList<>();
-        friendList.add("test21@test.com");
-        friendList.add("test22@test.com");
-        ListOfFriends listOfFriends = new ListOfFriends(friendList);
-        HttpEntity<ListOfFriends> entity = new HttpEntity<>(listOfFriends, headers);
-        template.postForObject(createConnectionUrl, entity, SimpleResult.class);
+    public void testRetrieveFriendList() throws Exception {
+        Mockito.when(
+                service.retrieveFriendListResult(Mockito.anyString())).thenReturn(mockFriendListResult);
 
-        friendList.remove(1);
-        friendList.add("test23@test.com");
-        listOfFriends = new ListOfFriends(friendList);
-        entity = new HttpEntity<>(listOfFriends, headers);
-        template.postForObject(createConnectionUrl, entity, SimpleResult.class);
+        String requestContent = "{\n" +
+                "  \"email\": \"anyone@test.com\"\n" +
+                "}";
 
-        RetrieveFriendList retrieveFriendList = new RetrieveFriendList("test21@test.com");
-        HttpEntity<RetrieveFriendList> entity1 = new HttpEntity<>(retrieveFriendList, headers);
-        FriendListResult response = template.postForObject(retrieveFriendUrl, entity1, FriendListResult.class);
-        assertTrue(response.isSuccess() == true);
-        assertTrue(response.getCount() == 2);
-        assertTrue(response.getFriends().contains("test22@test.com"));
+        RequestBuilder requestBuilder = MockMvcRequestBuilders.post(retrieveFriendUrl)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(requestContent)
+                .contentType(MediaType.APPLICATION_JSON);
+
+        MvcResult result = mockMvc.perform(requestBuilder).andReturn();
+
+        assertEquals(mockFriendListResultJson, result.getResponse().getContentAsString());
     }
 
     @Test
     public void testRetrieveCommonFriendList() throws Exception {
-        List<String> friendList = new ArrayList<>();
-        friendList.add("test31@test.com");
-        friendList.add("test32@test.com");
-        ListOfFriends listOfFriends = new ListOfFriends(friendList);
-        HttpEntity<ListOfFriends> entity = new HttpEntity<>(listOfFriends, headers);
-        template.postForObject(createConnectionUrl, entity, SimpleResult.class);
+        Mockito.when(
+                service.retrieveCommonFriendList(Mockito.anyList())).thenReturn(mockFriendListResult);
 
-        friendList.remove(1);
-        friendList.add("test33@test.com");
-        listOfFriends = new ListOfFriends(friendList);
-        entity = new HttpEntity<>(listOfFriends, headers);
-        template.postForObject(createConnectionUrl, entity, SimpleResult.class);
+        RequestBuilder requestBuilder = MockMvcRequestBuilders.post(retrieveCommonFriendUrl)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(exampleListOfFriendsJson)
+                .contentType(MediaType.APPLICATION_JSON);
 
-        friendList.clear();
-        friendList.add("test32@test.com");
-        friendList.add("test33@test.com");
-        ListOfFriends queryList = new ListOfFriends(friendList);
-        entity = new HttpEntity<>(queryList, headers);
-        FriendListResult response = template.postForObject(retrieveCommonFriendUrl, entity, FriendListResult.class);
-        assertTrue(response.isSuccess() == true);
-        assertTrue(response.getFriends().contains("test31@test.com"));
+        MvcResult result = mockMvc.perform(requestBuilder).andReturn();
+
+        assertEquals(mockFriendListResultJson, result.getResponse().getContentAsString());
     }
 
     @Test
     public void testSubscribeUpdate() throws Exception {
-        PairUpdate pairUpdate = new PairUpdate("test41@test.com", "test42@test.com");
-        HttpEntity<PairUpdate> entity = new HttpEntity<>(pairUpdate, headers);
-        SimpleResult response = template.postForObject(subscribeUpdateUrl, entity, SimpleResult.class);
-        assertTrue(response.isSuccess() == true);
+        Mockito.when(
+                service.subscribeUpdate("requestor@test.com", "target@test.com")).thenReturn(mockSimpleResult);
+
+        RequestBuilder requestBuilder = MockMvcRequestBuilders.post(subscribeUpdateUrl)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(requestorTargetJson)
+                .contentType(MediaType.APPLICATION_JSON);
+
+        MvcResult result = mockMvc.perform(requestBuilder).andReturn();
+
+        MockHttpServletResponse response = result.getResponse();
+        assertEquals(HttpStatus.OK.value(), response.getStatus());
+
+        assertEquals(simpleResultJson, result.getResponse().getContentAsString());
     }
 
     @Test
     public void testBlockUpdates() throws Exception {
-        PairUpdate pairUpdate = new PairUpdate("test51@test.com", "test52@test.com");
-        HttpEntity<PairUpdate> entity = new HttpEntity<>(pairUpdate, headers);
-        SimpleResult response = template.postForObject(blockUpdatesUrl, entity, SimpleResult.class);
-        assertTrue(response.isSuccess() == true);
+        Mockito.when(
+                service.blockUpdates("requestor@test.com", "target@test.com")).thenReturn(mockSimpleResult);
+
+        RequestBuilder requestBuilder = MockMvcRequestBuilders.post(blockUpdatesUrl)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(requestorTargetJson)
+                .contentType(MediaType.APPLICATION_JSON);
+
+        MvcResult result = mockMvc.perform(requestBuilder).andReturn();
+
+        MockHttpServletResponse response = result.getResponse();
+        assertEquals(HttpStatus.OK.value(), response.getStatus());
+
+        assertEquals(simpleResultJson, result.getResponse().getContentAsString());
     }
 
     @Test
     public void testRetrieveEligibleSubscriber() throws Exception {
-        List<String> friendList = new ArrayList<>();
-        friendList.add("test61@test.com");
-        friendList.add("test62@test.com");
-        ListOfFriends listOfFriends = new ListOfFriends(friendList);
-        HttpEntity<ListOfFriends> entity = new HttpEntity<>(listOfFriends, headers);
-        template.postForObject(createConnectionUrl, entity, SimpleResult.class);
+        List<String> recipients = new ArrayList<>();
+        recipients.add("atUser@test.com");
+        recipients.add("friend@test.com");
+        SubscriberResult mockSubcriberResult = new SubscriberResult(true, recipients);
 
-        friendList.remove(1);
-        friendList.add("test63@test.com");
-        listOfFriends = new ListOfFriends(friendList);
-        entity = new HttpEntity<>(listOfFriends, headers);
-        template.postForObject(createConnectionUrl, entity, SimpleResult.class);
+        Mockito.when(
+                service.retrieveEligibleSubscriber("sender@test.com", "Hey, atUser@test.com")).thenReturn(mockSubcriberResult);
 
-        PairUpdate subscriber = new PairUpdate("test64@test.com", "test61@test.com");
-        HttpEntity<PairUpdate> subscriberEntity = new HttpEntity<>(subscriber, headers);
-        template.postForObject(subscribeUpdateUrl, subscriberEntity, SimpleResult.class);
+        String testEligibleSubcriberJson = "{\n" +
+                "  \"sender\":  \"sender@test.com\",\n" +
+                "  \"text\": \"Hey, atUser@test.com\"\n" +
+                "}";
+        RequestBuilder requestBuilder = MockMvcRequestBuilders.post(retrieveEligibleSubscriberUrl)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(testEligibleSubcriberJson)
+                .contentType(MediaType.APPLICATION_JSON);
 
-        PairUpdate blocker = new PairUpdate("test63@test.com", "test61@test.com");
-        HttpEntity<PairUpdate> blockerEntity = new HttpEntity<>(blocker, headers);
-        template.postForObject(blockUpdatesUrl, blockerEntity, SimpleResult.class);
+        MvcResult result = mockMvc.perform(requestBuilder).andReturn();
 
-        PairUpdate blocker2 = new PairUpdate("test65@test.com", "test61@test.com");
-        HttpEntity<PairUpdate> blocker2Entity = new HttpEntity<>(blocker2, headers);
-        template.postForObject(blockUpdatesUrl, blocker2Entity, SimpleResult.class);
-
-        UserUpdate userUpdate = new UserUpdate("test61@test.com", "Hey test65@test.com and test66@test.com");
-        HttpEntity<UserUpdate> userUpdateEntity = new HttpEntity<>(userUpdate, headers);
-        SubscriberResult response = template.postForObject(retrieveEligibleSubscriberUrl, userUpdateEntity, SubscriberResult.class);
-        assertTrue(response.isSuccess() == true);
-        assertTrue(response.getRecipients().size() == 3);
-        assertTrue(response.getRecipients().contains("test62@test.com"));
-        assertFalse(response.getRecipients().contains("test63@test.com"));
-        assertTrue(response.getRecipients().contains("test64@test.com"));
-        assertFalse(response.getRecipients().contains("test65@test.com"));
-        assertTrue(response.getRecipients().contains("test66@test.com"));
+        String expected = "{\"success\":true,\"recipients\":[\"atUser@test.com\",\"friend@test.com\"]}";
+        assertEquals(expected, result.getResponse().getContentAsString());
     }
 }
